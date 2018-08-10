@@ -1,0 +1,561 @@
+---
+title: "Excercise 1"
+author: "Apoorva_Reddy_Adavalli"
+date: "8 August 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Problem : Problem Exploratory Analysis - Green Buildings 
+
+```{r}
+getwd()
+setwd("D:/UT Austin/Summer Sem/Predictive Modelling - Carlos M Carvalho/Week 2/Excercise")
+library(ggplot2)
+df=read.csv('greenbuildings_filtered.csv')
+df$green_rating=as.factor(df$green_rating)
+df$amenities=as.factor(df$amenities)
+nrow(df)
+## creating a column for neighbourhood indicator  
+df$Class=ifelse(df$class_b=='1','B',ifelse(df$class_a=='1','A','C'))
+## Creating yearly_rent by multiplying rent per sq foot and leasing rate
+df$yearly_rent=df$leasing_rate*df$Rent
+df$green_rating1=ifelse(df$green_rating==1,'green','not green')
+
+
+```
+
+```{r}
+par(mfcol=c(2,1))
+ggplot(df,aes(x=Rent))+geom_histogram(bins = 30)
+ggplot(df,aes(x=yearly_rent))+geom_histogram(bins = 30)
+```
+
+Rent histogram shows that it's distribution is right skewed.  
+
+# Flaws in the assumptions 
+There are many flaws in the assumptions made by the Excel guru and I dont complete agree with the conclusions made out of it.
+
+```{r pressure, echo=FALSE}
+plot(df$leasing_rate,df$Rent)
+
+```
+
+#Flaw 1: 
+
+While cleaning the data, low occupancy rates are removed which is not necessary because it is neither relevant to the price nor the green_rating.According to the above plot, buildings with low occupancy rates do not have unusually high prices. So, it is not clear as to why these rows must be removed or to be considered as outliers. Both high and low lease rates show low rents and the outliers of the rent have higher leasing rate. So removing only less than 10% leasing rate buildings doesnt make sense wrt Rent.
+
+```{r}
+df$class_rating=paste(df$Class,df$green_rating1)
+C_R=aggregate(Rent~ class_rating, data = df, FUN = function(x) c(mean = mean(x), median= median(x),count = length(x)  ) )
+agg_C_R <- do.call(data.frame, C_R)
+C_R1=aggregate(Rent~ green_rating1, data = df, FUN = function(x) c(mean = mean(x), median= median(x),count = length(x)  ) )
+agg_C_R1 <- do.call(data.frame, C_R1)
+agg_C_R1
+qplot(class_rating, Rent, data=df, geom=c("boxplot"), 
+      fill=Class, main="Avg rent per class",
+      xlab="", ylab="Rent")
+```
+
+#Flaw 2:
+
+Excel guru has removed the outliers on the basis of occupancy rate and assumed that this made rent fall within a particular range. And then considers median after noticing more outliers in rent value.
+Considering median instead of mean is correct but for other reasons. The above box plot and agg_C_R table shows that there are outliers within 'Rent' values and the significant difference between median and mean.
+
+
+```{r}
+ggplot(agg_C_R, aes(class_rating, Rent.mean,fill=class_rating,alpha=0.5)) +
+  geom_col()+ geom_bar(aes(y=Rent.median),stat="identity",col="black",lwd=0.7)+ggtitle("Median and Mean comparision among Class-Green Rating buildings")
+```
+
+#Flaw 3: 
+
+The excel guru did not consider the class of neighbourhood into account and took the overall median value.
+From the above graph, it is clear that if East Cesar Chavez  is of class A then the difference in median prices between with green_rating and without green rating is less significant.But it would be much more if the building belongs to class C. 
+
+```{r}
+df_green=df[df$green_rating==1,]
+C_R_4=aggregate(Rent~ Class, data = df_green, FUN = length)
+C_R_4$'%total'=round(C_R_4$Rent/length(df_green$Rent)*100,0)
+C_R_4
+library(reshape2)
+library(reshape)
+q1=cast(df,cluster~green_rating,value='Rent',median)
+q1$greenrentwrtnongreen=ifelse(round(q1$`1`,1)>round(q1$`0`,1),'Greater','Lesser')
+q1$difference_per_cluster=q1$`1`-q1$`0`
+q2=cast(q1,greenrentwrtnongreen~.,value='difference_per_cluster',length)
+qplot(cluster,difference_per_cluster,data=q1,col=greenrentwrtnongreen)
+```
+
+```{r}
+ggplot(q2,aes(greenrentwrtnongreen,`(all)`,fill=greenrentwrtnongreen)) + 
+  geom_bar(stat="identity",position="dodge")+labs(x = "Green building rent wrt Non-green building rent")+labs(y="# Clusters")+
+  labs(title = "# Comparision of median rent of green and non-green buildings among clusters")+geom_text(aes(label = `(all)`))
+```
+
+#Flaw 4: 
+
+There are 209 clusters where the median rent of non-green building is higher than green buildings. So if the above chosen East Cesar Chavez falls into one of these 209 clusters then investing in green building wouldn't be very profitable.
+
+```{r}
+df$empl_gr=df$empl_gr.int
+q5=cast(df_green,Class~.,value='Rent',length)
+q5$Fraction=round(q5$`(all)`/length(df_green$Building.ID)*100,2)
+ggplot(q5,aes(Class,`(all)`,fill=Class)) + 
+  geom_bar(stat="identity",position="dodge")+labs(x = "Class")+labs(y="# Green buildings")+
+  labs(title = "# Green_buildings by Clusters")+geom_text(aes(label = `(all)`))+geom_text(aes(label = paste(Fraction,"%"),hjust=0.5, vjust=2, size=0.5))
+```
+
+#Flaw 5:
+
+According to excel guru, the green_ratings buildings have higher price on a whole by 2$ per sq.foot and is the sole factor.
+Out of all the green_buildings 80% of them belong to Class A abd 19% belong to Class B and only 1% belogn to Class C. So this Class A is increasing the average of the green buildings.
+Similarly large size, more amenities also increse the rent and hence are important while calculating the premium on rent.
+
+#Flaw 6: 
+
+Repurcating the costs within 7.7 years has an underlying assumption of 90% occupany rate in all the future years. 
+Occupancy rate is fraction of space under current lease. Unless we have the data for future and the occupancy fraction we cant comment on the repurcation costs
+There are also other factors like depreciation, maitainence costs, renovation costs, rental value adjustments in the next 30 years. So cannot estimate the profits.
+
+# Lets run a regression to understand the effect of each variable on Rent and understand the relationship
+
+```{r}
+df_lm=df[,1:22]
+df3=cbind(df[,2:7],lapply(df[colnames(df[,8:15])], factor),df[,16:22])
+df3$cluster=as.factor(df3$cluster)
+df4=df3
+df4$cluster=NULL
+df_lm=lm(Rent~.,df4)
+summary(df_lm)
+```
+
+Size, stories, age, class, net, amenities, hd_total, cluster_rent, costs have a significant relationship with rent. 
+Note that linear regression shows that energy star rating is not a significant varibale when all the  given variables are  considered.
+
+```{r}
+df_lm1=lm(Rent~green_rating+class_a+class_b,df3)
+df_lm_summary=summary(df_lm1)
+df_lm_summary$sigma
+```
+```{r}
+
+df_lm2=lm(Rent~green_rating+class_a+class_b+as.factor(cluster),df3)
+df_lm_2_summary=summary(df_lm2)
+df_lm_2_summary$sigma
+```
+
+#Conclusion:
+
+We'll notice that RSE is decreasing as we are adding the variables . So certainly more number of variables are needed to take the decision in this case and more information in terms of location, cluster is needed in order to make an informed decision. 
+
+#############################################################################################################
+
+##Problem : Bootstrapping_Portfolio_Investment
+
+```{r}
+options("getSymbols.warning4.0"=FALSE)
+library(mosaic)
+library(quantmod)
+library(foreach)
+my_favorite_seed = 1234567
+set.seed(my_favorite_seed)
+mystocks = c("SPY", "TLT", "LQD","EEM","VNQ")
+getSymbols(mystocks,from="2001-01-01")
+
+SPYa = adjustOHLC(SPY)
+TLTa = adjustOHLC(TLT)
+LQDa = adjustOHLC(LQD)
+EEMa = adjustOHLC(EEM)
+VNQa = adjustOHLC(VNQ)
+```
+```{r}
+plot(ClCl(SPYa))
+plot(ClCl(TLTa))
+plot(ClCl(LQDa)) 
+plot(ClCl(EEMa))
+plot(ClCl(VNQa))
+```
+
+
+All the stocks have suffered during 2008 financial depression.
+In general Bonds(TLT and LQD) are always considered to be safe investments. 
+Let us also look at the standard deviation of returns of all these stocks. Lower the standard deviation lower is the risk
+```{r}
+all_returns = cbind(ClCl(SPYa),ClCl(TLTa),ClCl(LQDa),ClCl(EEMa),ClCl(VNQa))
+Sd=round(sapply(all_returns, sd, na.rm = TRUE),4)
+ggplot(data.frame(Sd),aes(x=seq_along(Sd),Sd))+geom_bar(stat="identity")
+
+```
+
+It is evident that LQD and TLT have the least standard deviations followed by SPY
+So we will be choosing Bonds (TLT and LQD) and US Domestic equities(SPY) to create a safe portfolio.
+And, for an aggressive portfolio let us consider Real estate(VNQ) and Emerging-market equities (EEM) because they are usually more volatile i.e. high standard deviation in returns.
+
+```{r}
+all_returns = as.matrix(na.omit(all_returns))
+boxplot(all_returns)
+pairs(all_returns)
+library(corrplot)
+corrplot(cor(all_returns),method=c('number'))
+```
+
+We can see correlation among all the stocks' returns. Particularly VNQ has strong relationshp with SPY
+
+#Bootstrapping for Even Portfolio 1 (P1)
+
+```{r}
+initial_wealth = 100000
+P1_my_weights = c(0.2,0.2,0.2, 0.2, 0.2)
+simulation_P1 = foreach(i=1:1000, .combine='rbind') %do% {
+  total_wealth = initial_wealth
+  weights_P1 = P1_my_weights
+  holdings_P1 = weights_P1 * total_wealth
+  n_days = 20 #4 week trading 
+  wealthtracker_P1 = rep(0, n_days)
+  for(today in 1:n_days) {
+    return.today_P1 = resample(all_returns, 1, orig.ids=FALSE)
+    holdings_P1 = holdings_P1 + holdings_P1*return.today_P1
+    total_wealth_P1 = sum(holdings_P1)
+    wealthtracker_P1[today] = total_wealth_P1
+  }
+  wealthtracker_P1
+}
+
+head(simulation_P1)
+hist(simulation_P1[,n_days],40)
+mean(simulation_P1[,n_days])
+hist(simulation_P1[,n_days]- initial_wealth, breaks=40)
+
+```
+
+```{r}
+#Calculate 5% value at risk
+c1=quantile(simulation_P1[,n_days], 0.05) - initial_wealth
+Value_at_risk = c("Even Portfolio",quantile(simulation_P1[,n_days], 0.05) - initial_wealth)
+print (paste0("He will loose " ,abs(round(c1,0)),"USD with probability of 5% in case of even protfolio"))
+```
+
+#Bootstrapping for Safe Portfolio  (P2)
+
+```{r}
+simulation_P2 = foreach(i=1:1000, .combine='rbind') %do% {
+  total_wealth = initial_wealth
+  weights_P2 = c(0.2,0.3,0.5)
+  holdings_P2 = weights_P2 * total_wealth
+  n_days = 20 #4 week trading 
+  wealthtracker_P2 = rep(0, n_days)
+  
+  for(today in 1:n_days) {
+    return.today_P2 = resample(all_returns[,1:3], 1, orig.ids=FALSE)
+    holdings_P2 = holdings_P2 + holdings_P2*return.today_P2
+    total_wealth_P2 = sum(holdings_P2)
+    wealthtracker_P2[today] = total_wealth_P2
+  }
+  wealthtracker_P2
+}
+
+head(simulation_P2)
+hist(simulation_P2[,n_days],40)
+mean(simulation_P2[,n_days])
+hist(simulation_P2[,n_days]- initial_wealth, breaks=40)
+```
+```{r}
+# Calculate 5% value at risk
+c2=quantile(simulation_P2[,n_days], 0.05) - initial_wealth
+Value_at_risk = rbind(Value_at_risk,c("Safe Portfolio",quantile(simulation_P2[,n_days], 0.05) - initial_wealth))
+print (paste0("He will loose " ,abs(round(c2,0)),"USD with probability of 5%" ))
+```
+
+#Bootstrapping for Aggressive Portfolio (P3)
+
+```{r}
+simulation_P3 = foreach(i=1:1000, .combine='rbind') %do% {
+  total_wealth = initial_wealth
+  weights_P3 = c(0.5,0.5)
+  holdings_P3 = weights_P3 * total_wealth
+  n_days = 20 #4 week trading 
+  wealthtracker_P3 = rep(0, n_days)
+  
+  for(today in 1:n_days) {
+    return.today_P3 = resample(all_returns[,4:5], 1, orig.ids=FALSE)
+    holdings_P3 = holdings_P3 + holdings_P3*return.today_P3
+    total_wealth_P3 = sum(holdings_P3)
+    wealthtracker_P3[today] = total_wealth_P3
+  }
+  wealthtracker_P3
+}
+
+head(simulation_P3)
+hist(simulation_P3[,n_days],40)
+mean(simulation_P3[,n_days])
+hist(simulation_P3[,n_days]- initial_wealth, breaks=40)
+```
+
+```{r}
+# Calculate 5% value at risk
+c3=quantile(simulation_P3[,n_days], 0.05) - initial_wealth
+Value_at_risk = rbind(Value_at_risk,c("Aggressive Portfolio",quantile(simulation_P3[,n_days], 0.05) - initial_wealth))
+print (paste0("He will loose " ,abs(round(c3,0)),"USD with probability of 5% in case of aggressive protfolio"))
+
+```
+```{r}
+Value_at_risk
+```
+#
+It is clear that portfolio with a split of 20% in SPY, 30% in TLT and 50% LQD would be the safest option because it results in least losses at 5% probability compared to 2 other portfolios considered.
+
+
+#############################################################################################################
+
+## Problem : Social_Marketing 
+
+```{r}
+library(LICORS)
+social_marketing=read.csv('social_marketing.csv')
+```
+
+```{r}
+# Cleaning data and removing irrelevant variables 
+social_marketing=social_marketing[,-1]
+social_marketing$spam=NULL
+social_marketing$chatter=NULL
+social_marketing$uncategorized=NULL
+head(social_marketing)
+social_marketing1 <- scale(social_marketing, center=TRUE, scale=TRUE) 
+my_favorite_seed = 1234567
+```
+
+#Correlation 
+```{r}
+library(corrplot)
+Correlation_matrix_social=cor(social_marketing1)
+corrplot(Correlation_matrix_social,method='circle',type='lower')
+```
+
+```{r}
+##Setting the threshold and looking at only highly correlated attributes
+Correlation_matrix_social[abs(Correlation_matrix_social) < 0.6] <- NA
+corrplot(Correlation_matrix_social,method='circle',type='lower')
+```
+
+Insights 
+1)High correlation between online_gaming and univ_colleges representing young population.
+2)Outdoor, fitness, personal_nutrition strongly related. Makes sense. 
+3)Cooking, beauty, fashion strongly correlated representing female poupulation.
+
+#Clustering
+```{r}
+set.seed(my_favorite_seed)
+clusters <- kmeans(social_marketing1, centers = 5, nstart = 100)
+hist(clusters$cluster)
+clusters$size
+clusters$centers
+```
+
+```{r}
+set.seed(my_favorite_seed)
+clusters <- kmeans(social_marketing1, centers = 5, nstart = 100)
+hist(clusters$cluster)
+clusters$size
+clusters$centers
+```
+
+```{r}
+# Kmeanspp just gives a better convergence 
+clusters = kmeanspp(social_marketing1, k=5, nstart=100)
+hist(clusters$cluster)
+clusters$size
+```
+
+When I chose k=5 then large chunk of data was in a single cluster. 
+This cluster had all the centers in -ve indicating no significant interests except for in adult content. But even that was also almost close to zero.
+Inorder to split the heavy cluster into further segments I have increased the k from 5 to 9. 
+
+```{r}
+mu = attr(social_marketing1,"scaled:center")
+sigma = attr(social_marketing1,"scaled:scale")
+clusters_unscaled = clusters$centers * sigma + mu
+```
+ 
+#Analyzing each cluster for K=5
+ 
+# Cluster 1
+
+```{r}
+library(ggplot2)
+print(paste0("Cluster size1: ",length(which(clusters$cluster==1))))
+rbind(clusters$centers[1, ], clusters_unscaled[1, ])
+qplot(parenting, family, data=social_marketing, color=factor(clusters$cluster),shape = factor(clusters$cluster))
+```
+
+1st cluster people love to post about religion,parenting,sports_fandom, food, family.
+
+Latent factor : We can infer from the interests that this cluster might majorly be middle aged males who are married
+
+# Cluster 2
+
+```{r}
+print(paste0("Cluster size2: ",length(which(clusters$cluster==2))))
+rbind(clusters$centers[2, ], clusters_unscaled[2, ])
+```
+
+This cluster has almost 50% of the poeple who dont have any particular interests that stands out. All the centers are negative and 'adult' is almost very close to 0.
+
+# Cluster 3
+```{r}
+print(paste0("Cluster size3: ",length(which(clusters$cluster==3))))
+rbind(clusters$centers[3, ], clusters_unscaled[3, ])
+```
+
+Cluster 3 seems to have poeple posting more about Fashion, Beauty, Cooking. Posts about photo sharing is also high in this cluster. 
+
+Latent Factor : This cluster could be representing young women. 
+
+```{r}
+qplot(fashion, beauty, data=social_marketing, color=factor(clusters$cluster),shape = factor(clusters$cluster))
+qplot(fashion, cooking, data=social_marketing, color=factor(clusters$cluster),shape = factor(clusters$cluster))
+```
+
+The above graph shows that more posts on beauty, fashion and cooking are falling into the green cluster which is 3
+
+# Cluster 4
+```{r}
+print(paste0("Cluster size4: ",length(which(clusters$cluster==4))))
+rbind(clusters$centers[4, ], clusters_unscaled[4, ])
+```
+
+Cluster 4 poeple tweet a lot about ,politics, travel, news, computers.
+
+Latent factor: Tech-savvy guys or business professionals  who travel alot
+
+# Cluster 5
+```{r}
+print(paste0("Cluster size5: ",length(which(clusters$cluster==5))))
+rbind(clusters$centers[5, ], clusters_unscaled[5, ])
+```
+
+Cluster 5 people tweet more about personal fitness, health_nutrition, outdoors. 
+
+Latent fator: Health conscious set of poeple fall into this cluster 
+
+Using K=5 we were able to seggregate only few types of people
+Common Traits about interests in music, online_games, crafts, college_universities, tv_film are missing 
+To understand the brand's Twitter followers better , let's split into more clusters. K= 9 
+
+#K=9
+```{r}
+clusters1 = kmeanspp(social_marketing1, k=9, nstart=100)
+hist(clusters1$cluster)
+clusters1$size
+clusters_unscaled1 = clusters1$centers * sigma + mu
+```
+Notice that  the highest cluster size dropped to 3375
+
+# Cluster 1
+
+```{r}
+print(paste0("Cluster size1: ",length(which(clusters1$cluster==1))))
+rbind(clusters$centers[1, ], clusters_unscaled1[1, ])
+```
+Commonality: Religion, parenting, school, food, family, sports_fandom.
+
+Latent factor : Married middle aged men with children 
+
+# Cluster 2
+
+```{r}
+print(paste0("Cluster size2: ",length(which(clusters1$cluster==2))))
+rbind(clusters1$centers[2, ], clusters_unscaled1[2, ])
+```
+
+Commonality: Computers, travel, news, politics.
+
+Latent factor : Tech-savvy/ business professionals who travel or are interested in travelling
+
+# Cluster 3
+
+```{r}
+print(paste0("Cluster size3: ",length(which(clusters1$cluster==3))))
+rbind(clusters1$centers[3, ], clusters_unscaled1[3, ])
+```
+
+Commonality: Fashion, Beauty, Cooking, photo sharing.
+
+Latent factor : Young women 
+
+#Cluster 4
+```{r}
+print(paste0("Cluster size4: ",length(which(clusters1$cluster==4))))
+rbind(clusters1$centers[4, ], clusters_unscaled1[4, ])
+```
+
+Commonality: Automotives, news, politics , sports_fandom.
+
+Latent factor : Young males
+
+# Cluster 5
+
+```{r}
+print(paste0("Cluster size5: ",length(which(clusters1$cluster==5))))
+rbind(clusters1$centers[5, ], clusters_unscaled1[5, ])
+```
+
+Commonality: Personal_fitness, outdoors, health_nutrition.
+
+Latent factor : Health-conscious beings
+
+# Cluster 6
+
+```{r}
+print(paste0("Cluster size5: ",length(which(clusters1$cluster==6))))
+rbind(clusters1$centers[6, ], clusters_unscaled1[6, ])
+```
+
+Commonality: Nothing in common (Negative centers).They dont tweet much in general but when they it is about adult stuff
+
+Latent factor : Cant' say
+
+# Cluster 7
+```{r}
+print(paste0("Cluster size7: ",length(which(clusters1$cluster==7))))
+rbind(clusters1$centers[7, ], clusters_unscaled1[7, ])
+```
+
+Commonality: schools, parenting, religion, family ,food ,sports_fandom (almost similar to cluster 1).
+
+Latent factor : Married middle aged men with children
+
+#Cluster 8
+
+```{r}
+print(paste0("Cluster size8: ",length(which(clusters1$cluster==8))))
+rbind(clusters1$centers[8, ], clusters_unscaled1[8, ])
+```
+
+Commonality: College_univ, sports, online_gaming.
+
+Latent factor : Young guys interested in gaming and sports.
+
+#Cluster 9
+
+```{r}
+print(paste0("Cluster size9: ",length(which(clusters1$cluster==9))))
+rbind(clusters1$centers[9, ], clusters_unscaled1[9, ])
+```
+
+Commonality: Art,music, tv_films
+
+Latent factor : Cool people who pursue arts.Could be artists,musicians or movie buffs.
+
+#Conclusion : 
+
+K=9 covered most of the aspects and grouped them into 9 clusters hence is slightly better than K=5 for this particular case.
+
+
+
+
+
