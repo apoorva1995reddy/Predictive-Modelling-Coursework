@@ -1,1 +1,3 @@
-# STA-380-Excercise-1
+Exploratory Analysis on Green Buildings 
+Bootstrapping - Stocks and best portfolio pick
+Social Marketing - Clustering 
