@@ -1,5 +1,5 @@
-Exploratory Analysis on Green Buildings 
+Problem 1 : Exploratory Analysis on Green Buildings and identifying flaws
 
-Bootstrapping - Stocks and best portfolio pick
+Problem 2 : Bootstrapping - Stocks and best portfolio pick
 
-Social Marketing - Clustering 
+Problem 3 : Social Marketing - Clustering 
