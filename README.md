@@ -4,4 +4,4 @@ Problem 2 : Bootstrapping - Stocks and best portfolio pick
 
 Problem 3 : Social Marketing - Clustering 
 
-All the solutions can be viewed in /Excercise.md
+All the solutions can be viewed in Excercise1.md
